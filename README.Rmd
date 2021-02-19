@@ -1,0 +1,205 @@
+---
+title: "README"
+author: "Chris Rooper"
+date: "`r format(Sys.time(), '%m %d, %Y')`"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+library(ncdf4)
+library(ggplot2)
+library(gganimate)
+library(sf)
+library(rgdal)
+library(proj4)
+library(rnaturalearth)
+library(gifski)
+library(NPALarvalDrift)
+```
+
+# NPA Larval Drift (NPALarvalDrift) Package
+
+## Introduction and purpose
+
+This package was developed as a way to process output from an Ocean Parcels lagrangian particle tracking software. This particular version is designed for use with Ocean Parcels trajectories for particles released at multiple Emperor Seamounts (n = 14) on dates ranging from November 15 to March 15 in each year (1993-2018). The underlying velocity field is a GlobCurrent model downloaded from Copernicus (https://www.copernicus.eu/en/access-data/copernicus-services-catalogue/global-total-surface-and-15m-current-copernicus). The Ocean Parcels python packages (www.oceanparcels.org) were used to generate net cdf files of particle positions on daily time steps. The functions in this package process the net cdf files into digestible data frames for further processing and analysis.
+
+To install the package from github using the devtools package (this only needs to be done once and again when updates to the package are pushed):
+
+```{r installgithub, eval=FALSE}
+
+install.packages("devtools")
+
+devtools::install_github("rooperc4/NPALarvalDrift")
+
+```
+
+Then install the libraries you will need for the examples
+
+```{r libraries,eval=FALSE}
+library(NPALarvalDrift)
+library(ncdf4)
+library(ggplot2)
+library(gganimate)
+library(sf)
+library(rgdal)
+library(proj4)
+library(rnaturalearth)
+library(gifski)
+```
+
+
+
+## Example code - Mapping the trajectories using the Particle_trajectory function
+
+In this example, an .nc file is processed using the Particle_trajectory function. This function parses the .nc data into a set of positions (latitude and longitude) for each particle. It also assigns its source seamount and the year of release. The data is then graphed and an animation created for the particles.
+
+Here's the function to extract the data (example data included with the package). In this version, I have specified the file name, the number of days to track the particle (drift_days=120) and the time interval in days over which to keep the data (interval = 1). The time interval can be changed to weekly by specifying interval=7. In this case the locations of the particle will be taken once every 7 days. If the end date is not divisible by the interval, the end position will also be appended to the data. So for example if you have drift_days = 120 and interval = 7 the output data will include days 1,4,7,...,112,115,118,120. 
+
+```{r importthedata}
+
+temp<-system.file("extdata", "y00_d0.nc", package = "NPALarvalDrift")
+
+data1<-Particle_trajectory(nc_file=temp,drift_days=120,interval=1)
+
+head(data1)
+```
+
+Here is code that will make a plot of the particles on a base map.
+
+```{r makeamap}
+#IMPORT THE BASEMAP AND TRANSFORM TO A NICER PROJECTION FOR THE NORTH PACIFIC
+bg = ne_countries(scale = "medium",  returnclass = "sf")
+bg1<-st_transform(bg,3832)
+
+#TRANSFORM THE TRAJECTORIES TO THE SAME PROJECTION AND ADD THEM TO THE DATA SET
+data2<-project(cbind(data1$Lon,data1$Lat),"+proj=merc +lon_0=150 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs")
+data1$LonP<-data2[,1]
+data1$LatP<-data2[,2]
+
+#MAKE A SET OF BOUNDARIES TO USE AS THE PLOTTING RANGE (LIMITS ON LONGITUDE AND LATITUDE)
+data3<-data.frame(cbind(c(130,235),c(62,25)))
+data3<-proj4::project(data3,"+proj=merc +lon_0=150 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs")
+
+#PLOT THE ENTIRE TRAJECTORY WITH THE MAP AS THE BACKGROUND
+p<-ggplot()+
+  #basemap
+  geom_sf(data = bg1)+
+  coord_sf(xlim = range(data3$x, na.rm = TRUE), 
+           ylim = range(data3$y, na.rm = TRUE), 
+           expand = TRUE)+
+  
+  # lines and points
+  geom_path(data = data1, 
+            aes(x=LonP,y=LatP,group=seamount,color=seamount), 
+            alpha = 0.3)+
+  geom_point(data = data1, 
+             aes(x=LonP,y=LatP,group=seamount,color=seamount),
+             alpha = 0.7, shape=21, size = 2)+
+  
+  # formatting
+  scale_fill_viridis_d(option = "inferno")+
+  scale_color_viridis_d(option = "inferno")+
+  scale_size_continuous(range = c(0.1,14))+
+  labs(x=NULL, y=NULL, 
+       fill = 'Seamount', 
+       color = 'Seamount')+
+  theme_dark()+
+  theme(panel.grid = element_blank())
+```
+ 
+Here is some code to animate the visualization.
+
+```{r animatethemap, cache=TRUE}
+#ANIMATE IT
+anim = p + 
+  transition_reveal(along = date)+
+  ease_aes('linear',renderer=gifski_renderer())+
+  ggtitle("Date: {frame_along}")
+anim
+ 
+
+ #SAVE THE ANIMATION AS A GIF
+anim_save("Daily200001_Depth0.gif",anim)
+
+```
+
+
+## Example code - Calculating the distance traveled and the final position using the Particle_drift function
+
+In this example, an .nc file is processed using the Particle_drift function. This function parses the .nc data into a beginning and end position (latitude and longitude) for each particle. It also assigns its source seamount and the year of release. It calculates both the cumulative distance traveled and the straight line distance traveled by the particle during its drift. The data is then graphed on a raster map and with a histogram of distances for the year.
+
+Here's the function to extract the data (example data included with the package). In this version, I have specified the file name and the number of days to track the particle (drift_days=120). 
+
+```{r importthedata2}
+
+temp<-system.file("extdata", "y00_d0.nc", package = "NPALarvalDrift")
+
+data1<-Particle_drift(nc_file=temp,drift_days=120)
+
+head(data1)
+```
+
+Here is some code to make a histogram of the distance traveled.
+
+```{r histogram}
+
+
+p<-ggplot(data=data1,aes(x=distance)) + 
+  geom_histogram(binwidth=50, 
+                 col="black", 
+                 fill="blue", 
+                 alpha = .2) + 
+  labs(title="Histogram for distance traveled (km) by Seamount of origin") +
+  labs(x="Distance (km)", y="Frequency")
+
+p+facet_wrap(~seamount)
+
+
+```
+
+
+Here is some code to make a raster showing the density of larval end points.
+
+```{r raster}
+library(raster)
+library(rasterVis)
+library(viridis)
+#make points
+end_points<-SpatialPoints(data.frame(data1$end_lon,data1$end_lat),proj4string=CRS("+proj=longlat +datum=WGS84"))
+
+end_points<-SpatialPointsDataFrame(coords=end_points,data.frame(Count=rep(1,length(data1$end_lon))))
+end_points
+
+newproj<-"+proj=merc +lon_0=150 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_def"
+
+extent_r<-projectExtent(end_points,newproj)
+res(extent_r)<-100000
+values(extent_r)<-1
+
+end_points<-spTransform(end_points,newproj)
+
+positions<-rasterize(end_points,extent_r,field="Count",fun="sum")
+plot(positions)
+
+data3<-data.frame(cbind(c(-230,-125),c(25,62)))
+data3<-proj4::project(data3,newproj)
+
+
+
+bg1<-st_transform(bg,newproj)
+positions_poly<-rasterToPolygons(positions)
+p1<-st_as_sf(positions_poly)
+
+g2<-ggplot()+geom_sf(data=bg1)+geom_sf(data=p1,aes(color=layer,fill=layer))+
+  coord_sf(xlim = data3$x, 
+           ylim = data3$y, 
+           expand = TRUE)+scale_fill_viridis(option="inferno",name="Particle count")+scale_color_viridis(option="inferno",name="Particle count")+
+          theme(panel.background = element_blank(),panel.grid=element_blank(),panel.border=element_rect(color="black",fill="transparent"))
+  
+  g2
+
+
+
+```
+
+
