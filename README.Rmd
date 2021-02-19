@@ -185,7 +185,7 @@ data3<-data.frame(cbind(c(-230,-125),c(25,62)))
 data3<-proj4::project(data3,newproj)
 
 
-
+bg = ne_countries(scale = "medium",  returnclass = "sf")
 bg1<-st_transform(bg,newproj)
 positions_poly<-rasterToPolygons(positions)
 p1<-st_as_sf(positions_poly)
@@ -198,6 +198,8 @@ g2<-ggplot()+geom_sf(data=bg1)+geom_sf(data=p1,aes(color=layer,fill=layer))+
   
   g2
 
+  
+  
 
 
 ```
