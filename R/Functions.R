@@ -91,7 +91,7 @@ Particle_trajectory<-function(nc_file,drift_days,interval=1){
 
   data1<-data.frame(Lon=Lon,Lat=Lat,date=date,Depth=Depth,particle_id=particle_id)
   data1<-data1[is.na(data1$date)==FALSE,]
-  yc<-paste(unique(format(Time[1],"%Y"))[1],unique(format(Time,"%Y"))[2],sep="-")
+  yc<-paste(unique(format(date[1],"%Y"))[1],unique(format(date,"%Y"))[2],sep="-")
 
   seamounts<-data.frame(Seamount=c("Suiko","Showa","Youmei","Nintoku","Jingu","Ojin","Koko","Kinmei","Yuryaku","Kammu","Colahan","C-H","NW Hancock","SE Hancock"),
                         Longitude=c(170.3, 170.4, 170.4, 170.6, 171.2, 170.5, 171.6, 171.5, 172.3, 173, 176, 177.6, 178.7, 179.1),
