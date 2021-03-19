@@ -12,7 +12,7 @@ Particle_drift(nc_file, drift_days)
 \item{drift_days}{number of days for which to calculate the drift}
 }
 \description{
-This function reads a net cdf file output from Ocean Parcels and compiles the final position of the particle, as well as the start position, 
+This function reads a net cdf file output from Ocean Parcels and compiles the final position of the particle, as well as the start position,
 beginning and ending dates, the cumulative distance travelled and the straight-line distance travelled. It also attaches the year of release
 and the seamount of release to the output.
 }

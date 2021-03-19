@@ -150,3 +150,98 @@ dist_xy<-function(Longitude_start,Latitude_start,Longitude_end,Latitude_end,unit
   rads <- acos((sin(la1) * sin(la2)) + (cos(la1) * cos(la2) * cos(lo2 - lo1)))
   return(r * rads)
 }
+
+
+
+#' Function to extract the sea surface temperature at a date and location
+#'
+#' This function downloads daily Optimum Interpolation Sea Surface Temperatures from the NCDC website (https://www.ncdc.noaa.gov/oisst)
+#' and stores them to a local destination. It will then extract the sea surface temperature for a set of dates at a set of locations.
+#' THe SST is gridded on 1/4 degrees, so the output will be on the same grid size.
+#' @param Longitude Longitude of interest
+#' @param Latitude Latitude of interest
+#' @param date  date of interest
+#' @param destination_path Local path for location of AVHRR daily files
+#' @param do_download TRUE (default) or FALSE should the AVHRR daily files be downloaded
+#' @param Area_of_interest Either a polygon or x and y min and max defining the area of interest (defauilt is the North Pacific)
+#' @keywords Larval drift, sea surface temperature, AVHRR
+#' @export
+#' @examples
+#' temps<-AVHRR_daily_extract_function(alltraj$Lon[1:4],alltraj$Lat[1:4],alltraj$date[1:4],"D:/AVHRR Data/",do_download=FALSE)
+#'
+#'
+#'
+AVHRR_daily_extract_function<-function(Longitude,Latitude,date,destination_path,do_download=TRUE,Area_of_interest=c(-230,-120,15,60)){
+  require(stringr)
+  require(RCurl)
+  require(ncdf4)
+  require(httr)
+  require(sp)
+
+  Latitude<-ceiling(abs(Latitude)*4)/4*Latitude/abs(Latitude)
+  Longitude<-ceiling(abs(Longitude)*4)/4*Longitude/abs(Longitude)
+
+
+
+  if(is.vector(Area_of_interest)){
+    x_coords<-c(Area_of_interest[1],Area_of_interest[1],Area_of_interest[2],Area_of_interest[2],Area_of_interest[1])
+    y_coords<-c(Area_of_interest[3],Area_of_interest[4],Area_of_interest[4],Area_of_interest[3],Area_of_interest[3])
+    Area_of_interest <- sp::Polygon(cbind(x_coords,y_coords))
+    Area_of_interest <- sp::Polygons(list(Area_of_interest), ID = "Area")
+    Area_of_interest <- sp::SpatialPolygons(list(Area_of_interest),proj4string = CRS("+proj=longlat +datum=WGS84 +no_defs"))
+  }
+
+  year<-as.numeric(unique(format(date,"%Y")))
+  destpath<-destination_path
+  urlpath<-"https://www.ncei.noaa.gov/data/sea-surface-temperature-optimum-interpolation/v2.1/access/avhrr/"
+
+  month<-as.numeric(unique(format(date,"%m")))
+
+  month<-formatC(month,width=2,format="d",flag="0")
+  day<-as.numeric(unique(format(date,"%d")))
+  day<-formatC(day,width=2,format="d",flag="0")
+
+  if(do_download==TRUE){
+    ##DOWNLOAD RELEVANT MONTHS AND YEARS OF DATA
+    for(i in 1:length(year)){
+      for(j in 1:length(month)){
+        for(k in 1:length(day)){
+          urlname<-paste(urlpath,year[i],month[j],"/oisst-avhrr-v02r01.",year[i],month[j],day[k],".nc",sep="")
+          if(!http_error(urlname)==TRUE){
+            if(file.exists(paste(destpath,"oisst-avhrr-v02r01.",year[i],month[j],day[k],".nc",sep=""))==FALSE){
+              download.file(urlname, destfile=paste(destpath,"oisst-avhrr-v02r01.",year[i],month[j],day[k],".nc",sep=""),mode="wb", quiet = FALSE)
+            }}}}}}
+
+
+  file1<-nc_open(paste(destpath,"oisst-avhrr-v02r01.",year[1],month[1],day[1],".nc",sep=""))
+  Lat<-as.vector(ncvar_get(file1,varid="lat"))
+  Lon<-as.vector(ncvar_get(file1,varid="lon"))
+  Lon<-rep(Lon,720)-360
+  Lat<-rep(Lat,each=1440)
+
+  spots<-data.frame(Lon=Lon,Lat=Lat)
+  meuse_sf = SpatialPoints(spots,proj4string = CRS("+proj=longlat +datum=WGS84 +no_defs"))
+  goodpts<-sp::over(meuse_sf,Area_of_interest)
+  Lon<-Lon[is.na(goodpts)==FALSE]
+  Lat<-Lat[is.na(goodpts)==FALSE]
+
+  AVHRR1<-data.frame(lon=numeric(),lat=numeric(),value=numeric(),year=numeric(),month=numeric(),day=numeric())
+  for(i in 1:length(year)){
+    for(j in 1:length(month)){
+      for(k in 1:length(day)){
+        if(file.exists(paste(destpath,"oisst-avhrr-v02r01.",year[i],month[j],day[k],".nc",sep=""))){
+          file1<-nc_open(paste(destpath,"oisst-avhrr-v02r01.",year[i],month[j],day[k],".nc",sep=""))
+          AVHRR_sst<-ncvar_get(file1,varid="sst")
+          AVHRR_sst<-as.vector(AVHRR_sst)
+          AVHRR_sst<-AVHRR_sst[is.na(goodpts)==FALSE]
+          data1<-data.frame(Longitude=ceiling(abs(Lon)*4)/4*Lon/abs(Lon),Latitude=ceiling(abs(Lat)*4)/4*Lat/abs(Lat),SST=AVHRR_sst,date=as.Date(paste(year[i],month=month[j],day=day[k],sep="-")),stringsAsFactors=FALSE)
+          nc_close(file1)}
+        AVHRR1<-rbind(AVHRR1,data1)}}}
+
+  AVHRR2<-data.frame(Longitude,Latitude,date)
+  AVHRR1$Longitude[AVHRR1$Longitude<=(-180)]<-AVHRR1$Longitude[AVHRR1$Longitude<=(-180)]+360
+
+  AVHRR3<-merge(AVHRR2,AVHRR1,by=c("Longitude","Latitude","date"),all.x=TRUE)
+
+  return(AVHRR3)
+}
