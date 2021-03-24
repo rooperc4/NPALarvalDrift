@@ -15,15 +15,15 @@ Particle_drift<-function(nc_file,drift_days){
   #nc_file<-"C:/Users/rooperc/Desktop/OceanParcels/particle/y00_d0.nc"
   #drift_days<-120
   require(ncdf4)
+  if(grepl("d15.nc",nc_file)){Depth<-15}
+  if(grepl("d0.nc",nc_file)){Depth<-0}
   nc_file<-nc_open(nc_file)
   Lon<-c(ncvar_get(nc_file,varid="lon"))
   Lat<-c(ncvar_get(nc_file,varid="lat"))
   Time<-c(ncvar_get(nc_file,varid="time"))
   Time<-as.Date(as.POSIXct(Time, origin = "1995-01-01 12:00:00"))
-  Depth<-c(ncvar_get(nc_file,varid="z"))
   NPA<-c(ncvar_get(nc_file,varid="trajectory"))
   nc_close(nc_file)
-
   data1<-data.frame(Lon=Lon,Lat=Lat,Time=Time,Depth=Depth,NPA=NPA)
   data1<-data1[is.na(data1$Time)==FALSE,]
   yc<-paste(unique(format(Time[1],"%Y"))[1],unique(format(Time,"%Y"))[2],sep="-")
@@ -33,7 +33,7 @@ Particle_drift<-function(nc_file,drift_days){
                         Latitude=c(44.6, 43, 42.3, 41.1, 38.8, 38, 35.3, 33.7, 32.7, 32.2, 31.3, 30.4, 30.3, 29.8),stringsAsFactors = FALSE)
 
 
-   outdata<-data.frame(particle_id=numeric(),seamount=character(),year=character(),start_date=character(),end_date=character(),start_lon=numeric(),start_lat=numeric(),end_lon=numeric(),end_lat=numeric(),distance=numeric(),cumulative_distance=numeric())
+   outdata<-data.frame(particle_id=numeric(),seamount=character(),year=character(),depth=numeric(),start_date=character(),end_date=character(),start_lon=numeric(),start_lat=numeric(),end_lon=numeric(),end_lat=numeric(),distance=numeric(),cumulative_distance=numeric())
    particles<-unique(data1$NPA)
 
   for(i in 1:length(particles)){
@@ -50,7 +50,7 @@ Particle_drift<-function(nc_file,drift_days){
     d1<-dist_xy(l1,l2,l3,l4,"km")
     d2<-sum(dist_xy(temp$Lon[1:(drift_days-1)],temp$Lat[1:(drift_days-1)],temp$Lon[2:drift_days],temp$Lat[2:drift_days],"km"))
 
-    temp1<-data.frame(particle_id=p1,seamount=s1,year=t3,start_date=t1,end_date=t2,start_lon=l1,start_lat=l2,end_lon=l3,end_lat=l4,distance=d1,cumulative_distance=d2)
+    temp1<-data.frame(particle_id=p1,seamount=s1,year=t3,depth=Depth,start_date=t1,end_date=t2,start_lon=l1,start_lat=l2,end_lon=l3,end_lat=l4,distance=d1,cumulative_distance=d2)
     outdata<-rbind(outdata,temp1)
   }
 
@@ -69,7 +69,7 @@ Particle_drift<-function(nc_file,drift_days){
 #' @keywords globcurrent larval drift duration
 #' @export
 #' @examples
-#' Particle_drift(kkjkh, 120, 7)
+#' Particle_trajectory(kkjkh, 120, 7)
 
 
 Particle_trajectory<-function(nc_file,drift_days,interval=1){
@@ -79,13 +79,14 @@ Particle_trajectory<-function(nc_file,drift_days,interval=1){
 
    int1<-seq(1,drift_days,interval)
     if(int1[length(int1)]!=drift_days){int1<-c(int1,drift_days)}
+   if(grepl("d15.nc",nc_file)){Depth<-15}
+   if(grepl("d0.nc",nc_file)){Depth<-0}
 
   nc_file<-nc_open(nc_file)
   Lon<-c(ncvar_get(nc_file,varid="lon"))
   Lat<-c(ncvar_get(nc_file,varid="lat"))
   date<-c(ncvar_get(nc_file,varid="time"))
   date<-as.Date(as.POSIXct(date, origin = "1995-01-01 12:00:00"))
-  Depth<-c(ncvar_get(nc_file,varid="z"))
   particle_id<-c(ncvar_get(nc_file,varid="trajectory"))
   nc_close(nc_file)
 
@@ -286,7 +287,7 @@ AVHRR_daily_extract_function<-function(Longitude,Latitude,date,destination_path,
 #'
 
 
-MODIS_extract_function<-function(Longitude,Latitude,date,destination_path,do_download=TRUE,Area_of_interest=c(-230,-120,15,60)){
+MODIS_daily_extract_function<-function(Longitude,Latitude,date,destination_path,do_download=TRUE,Area_of_interest=c(-230,-120,15,60)){
   require(stringr)
   require(RCurl)
   #
@@ -376,3 +377,49 @@ MODIS_extract_function<-function(Longitude,Latitude,date,destination_path,do_dow
 
   return(modis1)
 }
+
+
+#' Function to aggregate trajectories
+#'
+#' This function takes a set of daily larval drift positions and aggregates them by weeks or months of release. For example,
+#' the function will average the daily latitude and longitude for increments of two week period of releases across all seamounts.
+#' @param traj_object This is a data frame containing the output of daily drift trajectories
+#' @param aggregate_days Time period over which to aggregate options are; 7 days, 14 days (default) and 1 month
+#' @param seamount_groups  Seamounts over which to group (default is all), individual seamounts can be used as well
+#' @keywords Larval drift
+#' @export
+#' @examples
+#' test1<-aggregate_trajectories(alltraj,aggregate_days="1 month",seamount_groups="Koko")
+#'
+#'
+#'
+
+aggregate_trajectories<-function(traj_object,aggregate_days="14 days",seamount_groups="all"){
+
+  #minyear<-as.numeric(format(min(traj_object$date),"%Y"))
+  #maxyear<-as.numeric(format(max(traj_object$date),"%Y"))
+
+  # traj_object<-alltraj
+  # seamount_groups<-"all"
+  # aggregate_days<-"14 days"
+
+  d2<-subset(traj_object,traj_object$seamount%in%seamount_groups)
+  if(seamount_groups=="all"){d2<-traj_object}
+
+  d3<-length(subset(d2[,1],d2$seamount==d2$seamount[1]&d2$year==d2$year[1]&d2$particle_id==d2$particle_id[1]))
+  d2$nday<-rep(seq(1,d3,1),length(d2[,1])/d3)
+
+  starts<-data.frame(date=as.Date(d2$date[d2$nday==1]),particle_id=d2$particle_id[d2$nday==1],year=d2$year[d2$nday==1],seamount=d2$seamount[d2$nday==1])
+  starts$bins<-starts$date
+  for(i in 1:length(unique(starts$year))){
+    d4<-subset(starts,starts$year==unique(starts$year)[i])
+    starts$bins[starts$year==unique(starts$year)[i]]<-as.Date(cut(d4$date,breaks=aggregate_days))}
+  starts<-starts[,-1]
+
+  d2<-merge(d2,starts,by=c("particle_id","seamount","year"),all.x=TRUE)
+
+  d2<-aggregate(cbind(Lon,Lat)~year+bins+nday+Depth,data=d2,FUN="mean")
+  d7<-ifelse(aggregate_days=="14 days",6,ifelse(aggregate_days=="7 days",3,ifelse(aggregate_days=="1 month",15,NA)))
+  d2$middate<-d2$bins+d2$nday+d7
+  colnames(d2)<-c("year","start_group","day_number","depth","Lon","Lat","mid_date")
+  return(d2)}

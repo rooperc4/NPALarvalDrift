@@ -18,7 +18,7 @@ This function reads a net cdf file output from Ocean Parcels and outputs the tra
 also attaches the year of release and the seamount of release to the output.
 }
 \examples{
-Particle_drift(kkjkh, 120, 7)
+Particle_trajectory(kkjkh, 120, 7)
 }
 \keyword{drift}
 \keyword{duration}
