@@ -226,7 +226,7 @@ AVHRR_daily_extract_function<-function(Longitude,Latitude,date,destination_path,
           urlname<-paste(urlpath,year[i],month[j],"/oisst-avhrr-v02r01.",year[i],month[j],day[k],".nc",sep="")
           if(!http_error(urlname)==TRUE){
             if(file.exists(paste(destpath,"oisst-avhrr-v02r01.",year[i],month[j],day[k],".nc",sep=""))==FALSE){
-              download.file(urlname, destfile=paste(destpath,"oisst-avhrr-v02r01.",year[i],month[j],day[k],".nc",sep=""),mode="wb", quiet = FALSE)
+              download.file(urlname, destfile=paste(destpath,"oisst-avhrr-v02r01.",year[i],month[j],day[k],".nc",sep=""),mode="wb", quiet = TRUE)
             }}}}}}
 
 
@@ -259,7 +259,7 @@ AVHRR_daily_extract_function<-function(Longitude,Latitude,date,destination_path,
   AVHRR1$Longitude[AVHRR1$Longitude<=(-180)]<-AVHRR1$Longitude[AVHRR1$Longitude<=(-180)]+360
 
   AVHRR3<-merge(AVHRR2,AVHRR1,by.x=c("Longitude_trim","Latitude_trim","date"),by.y=c("Longitude","Latitude","date"),all.x=TRUE)
-  AVHRR3<-AVHRR3[,3:5]
+  AVHRR3<-AVHRR3[,3:6]
   return(AVHRR3)
 }
 
@@ -313,7 +313,7 @@ MODIS_daily_extract_function<-function(Longitude,Latitude,date,destination_path,
       urlname<-paste(urlpath,"vgpm.m.",year[i],".xyz.tar",sep="")
       if(url.exists(urlname)==TRUE){
         if(file.exists(paste(destpath,"vgpm.m.",year[i],".xyz.tar",sep=""))==FALSE){
-          download.file(urlname, destfile=paste(destpath,"vgpm.m.",year[i],".xyz.tar",sep=""),mode="wb", quiet = FALSE)
+          download.file(urlname, destfile=paste(destpath,"vgpm.m.",year[i],".xyz.tar",sep=""),mode="wb", quiet = TRUE)
           untar(paste(destpath,"vgpm.m.",year[i],".xyz.tar",sep=""),exdir=paste0(destpath,"GZ/"))}}}}
   #vgpm = net primary production (units of mg C / m**2 / day) based on the standard vgpm algorithm
   #yyyy = year
@@ -373,7 +373,7 @@ MODIS_daily_extract_function<-function(Longitude,Latitude,date,destination_path,
 
 
   modis1<-merge(modis2,modis1,by.x=c("Longitude_trim","Latitude_trim","date"),by.y=c("lon","lat","date"),all.x=TRUE)
-  modis1<-modis1[,3:5]
+  modis1<-modis1[,3:6]
 
   return(modis1)
 }
